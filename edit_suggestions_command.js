@@ -1,4 +1,4 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
 
 const {
     SlashCommandBuilder,
@@ -6,13 +6,13 @@ const {
     SlashCommandIntegerOption,
     SlashCommandStringOption,
     Embed
-} = require("@discordjs/builders");
+} = require("@discordjs/builders")
 
-const {guildId, suggestionsChannel, host, authorization} = require("./config.json");
+const {guildId, suggestionsChannel, host, authorization} = require("./config.json")
 
 module.exports = (client, states) => {
-    const approvalStates = ['Pending', 'Approved', 'Implemented', 'Partially Approved', 'Partially Implemented', 'Denied', 'Duplicate'];
-    const suggestionsCommand = new SlashCommandBuilder().setName('editsuggestions').setDescription('Suggestion commands').setDefaultPermission(false);
+    const approvalStates = ['Pending', 'Approved', 'Implemented', 'Partially Approved', 'Partially Implemented', 'Denied', 'Duplicate']
+    const suggestionsCommand = new SlashCommandBuilder().setName('editsuggestions').setDescription('Suggestion commands').setDefaultPermission(false)
 
     suggestionsCommand.addSubcommand(new SlashCommandSubcommandBuilder()
         .setName('state')
@@ -46,15 +46,15 @@ module.exports = (client, states) => {
                 'Content-Type': contentType
             },
             body: body ? JSON.stringify({pass: authorization, ...body}) : JSON.stringify(authorization)
-        });
+        })
         if (result.status !== 200) {
             if (result.status === 404) {
-                await interaction.reply({content: notFoundMessage, ephemeral: true});
+                await interaction.reply({content: notFoundMessage, ephemeral: true})
             } else {
-                await interaction.reply({content: failMessage, ephemeral: true});
+                await interaction.reply({content: failMessage, ephemeral: true})
             }
         } else {
-            await interaction.reply(await reply(result));
+            await interaction.reply(await reply(result))
         }
     }
 
@@ -66,22 +66,23 @@ module.exports = (client, states) => {
                     'Content-Type': 'text/plain'
                 },
                 body: JSON.stringify(authorization)
-            });
+            })
             if (addResult.status !== 200) {
-                await message.reply('Failed to request suggestion.');
+                await message.reply('Failed to request suggestion.')
             } else {
-                await message.startThread({
+                const thread = await message.startThread({
                     name: `Suggestion #${parseInt(await addResult.text())} by ${message.member.displayName}, discussion thread`
                 })
+                await thread.send(`<@${message.guild.ownerId}>`)
             }
         }
-    });
+    })
 
     client.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) {
-            return;
+            return
         }
-        const {commandName, options} = interaction;
+        const {commandName, options} = interaction
         if (commandName === 'editsuggestions') {
             switch (options.getSubcommand()) {
                 case 'state': {
@@ -93,48 +94,48 @@ module.exports = (client, states) => {
                         partially_implemented: 4,
                         denied: 5,
                         duplicate: 6
-                    }[options.getString('state')];
+                    }[options.getString('state')]
 
                     await modifySuggestions(options.getInteger('id'), interaction, 'PATCH', async result => {
-                        const suggestion = await result.json();
-                        const guild = client.guilds.cache.get(guildId);
-                        const channel = guild.channels.cache.get(suggestionsChannel);
-                        const message = await channel.messages.fetch(suggestion.messageId);
+                        const suggestion = await result.json()
+                        const guild = client.guilds.cache.get(guildId)
+                        const channel = guild.channels.cache.get(suggestionsChannel)
+                        const message = await channel.messages.fetch(suggestion.messageId)
                         const embed = new Embed()
                             .setTitle(`Suggestion #${suggestion.id} has been updated`)
                             .addField({name: 'Author:', value: `<@${suggestion.authorId}>`})
                             .addField({name: 'Approval State:', value: states[suggestion.state]})
-                            .setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substr(0, 29)}...](${message.url})`);
+                            .setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substr(0, 29)}...](${message.url})`)
 
                         if (suggestion.state > 4) {
-                            embed.setColor(0xFF0000);
+                            embed.setColor(0xFF0000)
                         } else if (suggestion.state > 0) {
-                            embed.setColor(0xFF00);
+                            embed.setColor(0xFF00)
                         }
 
-                        return {embeds: [embed]};
+                        return {embeds: [embed]}
                     }, {
                         body: {state},
                         failMessage: 'Failed to update suggestion.',
                         notFoundMessage: 'Invalid suggestion ID.'
-                    });
-                    break;
+                    })
+                    break
                 }
                 case 'delete': {
                     await modifySuggestions(options.getInteger('id'), interaction, 'DELETE', async () => {
-                        return {content: 'Suggestion deleted successfully.'};
+                        return {content: 'Suggestion deleted successfully.'}
                     }, {
                         failMessage: 'Failed to delete suggestion.',
                         notFoundMessage: 'Invalid suggestion ID.'
-                    });
-                    break;
+                    })
+                    break
                 }
                 case 'add': {
-                    const messageId = options.getString('id');
+                    const messageId = options.getString('id')
                     await modifySuggestions(`add/${messageId}`, interaction, 'POST', async result => {
-                        const guild = client.guilds.cache.get(guildId);
-                        const channel = guild.channels.cache.get(suggestionsChannel);
-                        const message = await channel.messages.fetch(messageId);
+                        const guild = client.guilds.cache.get(guildId)
+                        const channel = guild.channels.cache.get(suggestionsChannel)
+                        const message = await channel.messages.fetch(messageId)
                         return {
                             embeds: [
                                 new Embed().setDescription(`Marked [message](${message.url}) by ${message.author} as suggestion with ID ${await result.text()}.`)
@@ -144,12 +145,12 @@ module.exports = (client, states) => {
                         failMessage: 'Failed to request suggestion.',
                         notFoundMessage: 'Invalid message ID.',
                         contentType: 'text/plain'
-                    });
-                    break;
+                    })
+                    break
                 }
             }
         }
-    });
+    })
 
-    return suggestionsCommand.toJSON();
-};
+    return suggestionsCommand.toJSON()
+}

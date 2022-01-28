@@ -1,4 +1,4 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
 
 const {
     SlashCommandBuilder,
@@ -7,22 +7,22 @@ const {
     SlashCommandBooleanOption,
     SlashCommandUserOption,
     SlashCommandStringOption, Embed
-} = require("@discordjs/builders");
+} = require("@discordjs/builders")
 
-const {MessageActionRow, MessageButton} = require("discord.js");
+const {MessageActionRow, MessageButton} = require("discord.js")
 
-const {guildId, suggestionsChannel, host} = require("./config.json");
+const {guildId, suggestionsChannel, host} = require("./config.json")
 
 module.exports = (client, lock, states) => {
-    const activeUserInteractions = {};
+    const activeUserInteractions = {}
 
-    const suggestionsViewCommand = new SlashCommandBuilder().setName('getsuggestions').setDescription('Get suggestion details.');
+    const suggestionsViewCommand = new SlashCommandBuilder().setName('getsuggestions').setDescription('Get suggestion details.')
 
     const add = (builder) => {
         suggestionsViewCommand.addSubcommand(builder.addBooleanOption(new SlashCommandBooleanOption()
             .setName("hidden")
             .setDescription("If the result of this command should be hidden. Default is true.")
-        ));
+        ))
     }
 
     add(new SlashCommandSubcommandBuilder()
@@ -62,36 +62,36 @@ module.exports = (client, lock, states) => {
         failMessage = 'Failed to fetch suggestion.',
         notFoundMessage = failMessage
     }) {
-        let hidden = interaction.options.getBoolean("hidden", false) ?? true;
-        await interaction.deferReply({ephemeral: hidden});
+        let hidden = interaction.options.getBoolean("hidden", false) ?? true
+        await interaction.deferReply({ephemeral: hidden})
         const result = await fetch(`${host}/suggestions/${path}`, {
             headers: {
                 'Content-Type': 'application/json'
             }
-        });
+        })
         if (result.status !== 200) {
             if (result.status === 404) {
-                await interaction.editReply({content: notFoundMessage, ephemeral: true});
+                await interaction.editReply({content: notFoundMessage, ephemeral: true})
             } else {
-                await interaction.editReply({content: failMessage, ephemeral: true});
+                await interaction.editReply({content: failMessage, ephemeral: true})
             }
         } else {
             await interaction.editReply({
                 ...(await reply(result)),
                 ephemeral: hidden
-            });
+            })
         }
     }
 
     client.on('interactionCreate', async interaction => {
-        const guild = client.guilds.cache.get(guildId);
-        const channel = guild.channels.cache.get(suggestionsChannel);
+        const guild = client.guilds.cache.get(guildId)
+        const channel = guild.channels.cache.get(suggestionsChannel)
         const toEmbed = async suggestion => {
-            const message = channel ? await channel.messages.fetch(suggestion.messageId) : null;
+            const message = channel ? await channel.messages.fetch(suggestion.messageId) : null
             const embed = new Embed()
                 .setTitle(`Suggestion #${suggestion.id}`)
                 .addField({name: 'Author:', value: `<@${suggestion.authorId}>`})
-                .addField({name: 'Approval State:', value: states[suggestion.state]});
+                .addField({name: 'Approval State:', value: states[suggestion.state]})
 
             if (message) {
                 embed.setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substr(0, 29)}...](${message.url})`)
@@ -100,29 +100,29 @@ module.exports = (client, lock, states) => {
             }
 
             if (suggestion.state > 4) {
-                embed.setColor(0xFF0000);
+                embed.setColor(0xFF0000)
             } else if (suggestion.state > 0) {
-                embed.setColor(0xFF00);
+                embed.setColor(0xFF00)
             }
-            return embed;
+            return embed
         }
         if (interaction.isButton()) {
-            await interaction.deferUpdate({ephemeral: true});
+            await interaction.deferUpdate({ephemeral: true})
             await lock.acquire('activeUserInteractions', done => {
-                const [type, interactionId] = interaction.customId.split('-');
-                const data = activeUserInteractions[interactionId];
-                let sign;
+                const [type, interactionId] = interaction.customId.split('-')
+                const data = activeUserInteractions[interactionId]
+                let sign
                 switch (type) {
                     case 'left': {
-                        sign = -1;
-                        break;
+                        sign = -1
+                        break
                     }
                     case 'right': {
-                        sign = 1;
-                        break;
+                        sign = 1
+                        break
                     }
                     default:
-                        sign = 0;
+                        sign = 0
                 }
 
                 const callback = async embed => {
@@ -138,29 +138,29 @@ module.exports = (client, lock, states) => {
                                 .setStyle('SECONDARY')
                                 .setEmoji("➡️")
                                 .setDisabled(data.index === data.suggestions.length - 1)
-                        );
+                        )
 
-                    await interaction.editReply({embeds: [embed], ephemeral: true, components: [row]});
-                    done();
-                };
+                    await interaction.editReply({embeds: [embed], ephemeral: true, components: [row]})
+                    done()
+                }
 
-                data.index += sign;
-                const embed = data.embeds[data.index];
+                data.index += sign
+                const embed = data.embeds[data.index]
                 if (embed) {
-                    callback(embed);
+                    callback(embed)
                 } else {
                     toEmbed(data.suggestions[data.index]).then(e => {
-                        data.embeds[data.index] = e;
-                        callback(e);
-                    });
+                        data.embeds[data.index] = e
+                        callback(e)
+                    })
                 }
-            });
+            })
 
         } else if (!interaction.isCommand()) {
-            return;
+            return
         }
 
-        const {commandName, options} = interaction;
+        const {commandName, options} = interaction
         if (commandName === 'getsuggestions') {
             switch (options.getSubcommand()) {
                 case 'view': {
@@ -168,14 +168,14 @@ module.exports = (client, lock, states) => {
                         return {embeds: [await toEmbed(await result.json())]}
                     }, {
                         notFoundMessage: 'Invalid suggestion ID.'
-                    });
-                    break;
+                    })
+                    break
                 }
                 case 'user': {
                     await fetchSuggestions(`by_author/${options.getUser('user').id}`, interaction, async result => {
-                        const suggestions = await result.json();
+                        const suggestions = await result.json()
 
-                        const embed = await toEmbed(suggestions[0]);
+                        const embed = await toEmbed(suggestions[0])
 
                         const row = new MessageActionRow()
                             .addComponents(
@@ -189,7 +189,7 @@ module.exports = (client, lock, states) => {
                                     .setStyle('SECONDARY')
                                     .setEmoji("➡️")
                                     .setDisabled(suggestions.length === 1)
-                            );
+                            )
 
                         await lock.acquire('activeUserInteractions', done => {
                             activeUserInteractions[interaction.id] = {
@@ -197,28 +197,28 @@ module.exports = (client, lock, states) => {
                                 index: 0,
                                 embeds: [embed],
                                 parent: interaction
-                            };
-                            done();
-                        });
+                            }
+                            done()
+                        })
 
                         return {embeds: [embed], components: [row]}
                     }, {
                         failMessage: 'Failed to fetch suggestions.',
                         notFoundMessage: 'User has no suggestions.'
-                    });
-                    break;
+                    })
+                    break
                 }
                 case 'message': {
                     await fetchSuggestions(`by_message/${options.getString('id')}`, interaction, async result => {
                         return {embeds: [await toEmbed(await result.json())]}
                     }, {
                         notFoundMessage: 'Invalid message ID.'
-                    });
-                    break;
+                    })
+                    break
                 }
             }
         }
-    });
+    })
 
-    return suggestionsViewCommand.toJSON();
-};
+    return suggestionsViewCommand.toJSON()
+}
