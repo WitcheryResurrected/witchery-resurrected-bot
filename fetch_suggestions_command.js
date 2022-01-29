@@ -125,7 +125,7 @@ module.exports = (client, lock, states) => {
                         sign = 0
                 }
 
-                const callback = async embed => {
+                const callback = embed => {
                     const row = new MessageActionRow()
                         .addComponents(
                             new MessageButton()
@@ -140,8 +140,7 @@ module.exports = (client, lock, states) => {
                                 .setDisabled(data.index === data.suggestions.length - 1)
                         )
 
-                    await interaction.editReply({embeds: [embed], ephemeral: true, components: [row]})
-                    done()
+                    interaction.editReply({embeds: [embed], ephemeral: true, components: [row]}).then(() => done()).catch(done)
                 }
 
                 data.index += sign
@@ -152,7 +151,7 @@ module.exports = (client, lock, states) => {
                     toEmbed(data.suggestions[data.index]).then(e => {
                         data.embeds[data.index] = e
                         callback(e)
-                    })
+                    }).catch(done)
                 }
             })
 

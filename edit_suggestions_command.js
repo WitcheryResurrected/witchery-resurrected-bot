@@ -8,7 +8,7 @@ const {
     Embed
 } = require("@discordjs/builders")
 
-const {guildId, suggestionsChannel, host, authorization} = require("./config.json")
+const {guildId, suggestionsChannel, logChannel, host, authorization} = require("./config.json")
 
 module.exports = (client, states) => {
     const approvalStates = ['Pending', 'Approved', 'Implemented', 'Partially Approved', 'Partially Implemented', 'Denied', 'Duplicate']
@@ -37,13 +37,12 @@ module.exports = (client, states) => {
     async function modifySuggestions(path, interaction, method, reply, {
         body,
         failMessage,
-        notFoundMessage = failMessage,
-        contentType = 'application/json'
+        notFoundMessage = failMessage
     }) {
         const result = await fetch(`${host}/suggestions/${path}`, {
             method,
             headers: {
-                'Content-Type': contentType
+                'Content-Type': 'application/json'
             },
             body: body ? JSON.stringify({pass: authorization, ...body}) : JSON.stringify(authorization)
         })
@@ -52,6 +51,7 @@ module.exports = (client, states) => {
                 await interaction.reply({content: notFoundMessage, ephemeral: true})
             } else {
                 await interaction.reply({content: failMessage, ephemeral: true})
+                await client.channels.cache.get(logChannel).send(`<@${interaction.guild.ownerId}> Request to suggestion path ${path} failed\nStatus Code: ${result.status}\nStatus Text: ${result.statusText}`)
             }
         } else {
             await interaction.reply(await reply(result))
@@ -63,12 +63,13 @@ module.exports = (client, states) => {
             const addResult = await fetch(`${host}/suggestions/add/${message.id}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'text/plain'
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(authorization)
             })
             if (addResult.status !== 200) {
                 await message.reply('Failed to request suggestion.')
+                await client.channels.cache.get(logChannel).send(`<@${message.guild.ownerId}> Request to suggestion path add/${message.id} failed\nStatus Code: ${addResult.status}\nStatus Text: ${addResult.statusText}`)
             } else {
                 const thread = await message.startThread({
                     name: `Suggestion #${parseInt(await addResult.text())} by ${message.member.displayName}, discussion thread`
@@ -143,8 +144,7 @@ module.exports = (client, states) => {
                         }
                     }, {
                         failMessage: 'Failed to request suggestion.',
-                        notFoundMessage: 'Invalid message ID.',
-                        contentType: 'text/plain'
+                        notFoundMessage: 'Invalid message ID.'
                     })
                     break
                 }

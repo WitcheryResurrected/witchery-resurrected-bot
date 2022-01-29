@@ -13,27 +13,33 @@ module.exports = (client, lock) => {
     function memberLeft(member, guild, done) {
         const leaveState = leaveStates[member.id]
         const tag = member.tag || member.user.tag
+        const channel = guild.channels.cache.get(welcomesChannel)
 
         if (leaveState.ban) {
             if (typeof leaveState.ban === 'string') {
-                guild.channels.cache.get(welcomesChannel).send(`Curse you warlock, don't ever return! (${tag} has been banned from ${guild.name} for ${leaveState.ban})`)
-                done()
+                channel.send(`Curse you warlock, don't ever return! (${tag} has been banned from ${guild.name} for ${leaveState.ban})`)
+                    .then(() => done())
+                    .catch(done)
             }
         } else {
             const callback = () => {
                 const name = member.displayName ?? member.username
+                leaveStates[member.id] = undefined
                 if (leaveState.kick) {
                     if (typeof leaveState.kick === 'string') {
-                        guild.channels.cache.get(welcomesChannel).send(`Off to torment with you, ${name}! (${tag} has been kicked from ${guild.name} for ${leaveState.kick})`)
+                        channel.send(`Off to torment with you, ${name}! (${tag} has been kicked from ${guild.name} for ${leaveState.kick})`)
+                            .then(() => done())
+                            .catch(done)
                     } else {
-                        guild.channels.cache.get(welcomesChannel).send(`Off to torment with you, ${name}! (${tag} has been kicked from ${guild.name})`)
+                        channel.send(`Off to torment with you, ${name}! (${tag} has been kicked from ${guild.name})`)
+                            .then(() => done())
+                            .catch(done)
                     }
                 } else {
-                    guild.channels.cache.get(welcomesChannel).send(`Shame, ${name} was brewing a nice concoction as well (${tag} has left ${guild.name})`)
+                    channel.send(`Shame, ${name} was brewing a nice concoction as well (${tag} has left ${guild.name})`)
+                        .then(() => done())
+                        .catch(done)
                 }
-
-                leaveStates[member.id] = undefined
-                done()
             }
 
             if (leaveState.kick) {
@@ -42,7 +48,7 @@ module.exports = (client, lock) => {
                 getKick(member).then(kick => {
                     leaveState.kick = kick
                     callback()
-                })
+                }).catch(done)
             }
         }
     }
@@ -78,7 +84,7 @@ module.exports = (client, lock) => {
                             }
                             done()
                         }
-                    })
+                    }).catch(done)
                 }
             })
         }
