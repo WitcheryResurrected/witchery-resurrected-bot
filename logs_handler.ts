@@ -1,18 +1,23 @@
-const {welcomesChannel, discordWelcomesChannel, logChannel, nitroChannel, nitroBoostRole} = require("./config.json")
+import {
+    User
+} from 'discord.js';
 
-module.exports = (client, lock) => {
+import {welcomesChannel, discordWelcomesChannel, logChannel, nitroChannel, nitroBoostRole} from './config.json'
+import {AuditLogEvent} from 'discord-api-types/payloads/v10/auditLog';
+
+export default (client, lock) => {
     const pendingMembers = new Set()
     const leaveStates = {}
 
     async function getKick(member) {
-        const kick = (await member.guild.fetchAuditLogs({limit: 1, type: 'MEMBER_KICK'})).entries.first()
-        if (Date.now() - kick.createdTimestamp > 3000) return null
-        return kick && member.id === kick.target.id ? kick.reason || true : null
+        const kick = (await member.guild.fetchAuditLogs({limit: 1, type: AuditLogEvent.MemberKick})).entries.first()
+        if (!kick || Date.now() - kick.createdTimestamp > 3000) return null
+        return member.id === kick.target.id ? kick.reason || true : null
     }
 
     function memberLeft(member, guild, done) {
         const leaveState = leaveStates[member.id]
-        const tag = member.tag || member.user.tag
+        const tag = member instanceof User ? member.tag : member.user.tag
         const channel = guild.channels.cache.get(welcomesChannel)
 
         if (leaveState.ban) {
@@ -23,7 +28,7 @@ module.exports = (client, lock) => {
             }
         } else {
             const callback = () => {
-                const name = member.displayName ?? member.username
+                const name = member instanceof User ? member.username : member.displayName
                 leaveStates[member.id] = undefined
                 if (leaveState.kick) {
                     if (typeof leaveState.kick === 'string') {
@@ -54,7 +59,7 @@ module.exports = (client, lock) => {
     }
 
     client.on('guildMemberAdd', async member => {
-        member.guild.channels.cache.get(logChannel).send(`User ${member} entered membership screening.`)
+        await member.guild.channels.cache.get(logChannel).send(`User ${member} entered membership screening.`)
 
         await lock.acquire('pendingMembers', done => {
             pendingMembers.add(member.id)
@@ -64,9 +69,10 @@ module.exports = (client, lock) => {
 
     client.on('guildMemberRemove', async member => {
         if (await lock.acquire('pendingMembers', done => done(undefined, pendingMembers.has(member.id)))) {
-            member.guild.channels.cache.get(logChannel).send(`User ${member}[${member.user.tag}] left membership screening.`)
+            await member.guild.channels.cache.get(logChannel).send(`User ${member}[${member.user.tag}] left membership screening.`)
         } else {
-            member.guild.channels.cache.get(logChannel).send(`User ${member}[${member.user.tag}] left the server.`)
+            await member.guild.channels.cache.get(logChannel).send(`User ${member}[${member.user.tag}] left the server.`)
+
             await lock.acquire('leaveStates', done => {
                 const leaveState = leaveStates[member.id]
                 if (leaveState) {
@@ -111,17 +117,21 @@ module.exports = (client, lock) => {
         if (message.channelId === discordWelcomesChannel && message.system) {
             await lock.acquire('pendingMembers', done => {
                 if (pendingMembers.has(message.member.id)) {
-                    pendingMembers.delete(message.member.id)
-                    message.guild.channels.cache.get(welcomesChannel).send(`Welcome ${message.member} to the Witch's Grove`)
+                    pendingMembers.delete(message.member.id);
+                    message.guild.channels.cache.get(welcomesChannel)
+                        .send(`Welcome ${message.member} to the Witch's Grove`)
+                        .then(() => done()).catch(done)
+                } else {
+                    done()
                 }
-                done()
             })
         }
     })
 
     client.on('guildMemberUpdate', async (oldMember, newMember) => {
         if (!oldMember.roles.resolve(nitroBoostRole) && newMember.roles.resolve(nitroBoostRole)) {
-            newMember.guild.channels.cache.get(nitroChannel).send(`🎉 🎉 Thank you ${newMember} for boosting ${newMember.guild.name}!! 🎉 🎉`)
+            await newMember.guild.channels.cache.get(nitroChannel)
+                .send(`🎉 🎉 Thank you ${newMember} for boosting ${newMember.guild.name}!! 🎉 🎉`)
         }
     })
 }

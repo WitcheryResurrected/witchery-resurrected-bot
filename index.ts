@@ -1,30 +1,26 @@
-const AsyncLock = require('async-lock')
+import AsyncLock from 'async-lock'
 
-const {REST} = require('@discordjs/rest')
-const {Routes} = require('discord-api-types/v9')
-const {Client, Intents} = require('discord.js')
+import {REST} from '@discordjs/rest'
+import {Routes, Snowflake} from 'discord-api-types/v10'
+import {Client, IntentsBitField, Partials} from 'discord.js'
 
-const {
-    guildId,
-    suggestionPermissions,
-    token
-} = require('./config.json')
+import {guildId, suggestionPermissions, token} from './config.json'
 
-const setupSuggestionEdits = require('./edit_suggestions_command.js')
-const setupSuggestionFetches = require('./fetch_suggestions_command.js')
-const setupBugReports = require('./bug_reports_command.js')
-const setupLeaveHandler = require('./logs_handler.js')
-const setupReactionHandler = require('./reactions_handler.js')
+import setupSuggestionEdits from './edit_suggestions_command'
+import setupSuggestionFetches from './fetch_suggestions_command'
+import setupBugReports from './bug_reports_command'
+import setupLeaveHandler from './logs_handler'
+import setupReactionHandler from './reactions_handler'
 
 async function main() {
     const client = new Client({
-        partials: ['MESSAGE', 'CHANNEL', 'REACTION', 'GUILD_MEMBER'],
+        partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember],
         intents: [
-            Intents.FLAGS.GUILDS,
-            Intents.FLAGS.GUILD_MEMBERS,
-            Intents.FLAGS.GUILD_BANS,
-            Intents.FLAGS.GUILD_MESSAGES,
-            Intents.FLAGS.GUILD_MESSAGE_REACTIONS
+            IntentsBitField.Flags.Guilds,
+            IntentsBitField.Flags.GuildMembers,
+            IntentsBitField.Flags.GuildBans,
+            IntentsBitField.Flags.GuildMessages,
+            IntentsBitField.Flags.GuildMessageReactions
         ]
     })
 
@@ -50,8 +46,8 @@ async function main() {
         })
 
         for (const command of [applicationCommandResults[0], applicationCommandResults[1]]) {
-            const appCommand = await client.application.commands.fetch(command.id)
-            await appCommand.permissions.add({guild: guildId, permissions: suggestionPermissions})
+            const appCommand = await client.application.commands.fetch(command.id as Snowflake)
+            await appCommand.permissions.add({guild: guildId, permissions: suggestionPermissions, token})
         }
 
         console.log(`Ready, logged in as ${client.user.tag}`)

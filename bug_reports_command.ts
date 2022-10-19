@@ -1,10 +1,10 @@
-const {SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandStringOption} = require("@discordjs/builders")
+import {SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandStringOption} from '@discordjs/builders'
 
-const {bugReportsChannel} = require("./config.json")
-const fs = require('fs')
+import {bugReportsChannel} from './config.json'
+import fs from 'fs'
 
-module.exports = (client, lock) => {
-    const bugsCommand = new SlashCommandBuilder().setName('editbugs').setDescription('Bug report commands').setDefaultPermission(false)
+export default (client, lock) => {
+    const bugsCommand = new SlashCommandBuilder().setName('editbugs').setDescription('Bug report commands').setDefaultMemberPermissions(0).setDMPermission(false)
     const bugReports = new Set(fs.existsSync('bug-reports.json') ? JSON.parse(fs.readFileSync('bug-reports.json', 'utf8')) : null)
 
     bugsCommand.addSubcommand(new SlashCommandSubcommandBuilder()
@@ -47,12 +47,13 @@ module.exports = (client, lock) => {
         }
         const {commandName, options} = interaction
         if (commandName === 'editbugs') {
+            const channel = interaction.guild.channels.cache.get(bugReportsChannel)
             switch (options.getSubcommand()) {
                 case 'add': {
                     const id = options.getString('id')
                     await interaction.deferReply()
 
-                    const message = await interaction.guild.channels.cache.get(bugReportsChannel).messages.fetch(id)
+                    const message = await channel.messages.fetch(id)
                     if (!message) {
                         await interaction.editReply('Could not find message.')
                     } else {
@@ -78,13 +79,13 @@ module.exports = (client, lock) => {
                     const id = options.getString('id')
                     await interaction.deferReply()
 
-                    const message = await interaction.guild.channels.cache.get(bugReportsChannel).messages.fetch(id)
+                    const message = await channel.messages.fetch(id)
                     if (!message) {
                         await interaction.editReply('Could not find message.')
                     } else {
                         const failed = await lock.acquire('bugReports', done => {
                             if (bugReports.has(id)) {
-                                bugReports.remove(id)
+                                bugReports.delete(id)
                                 writeBugs(done)
                             } else {
                                 done(undefined, true)

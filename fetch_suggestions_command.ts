@@ -1,27 +1,28 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
+import fetch from 'node-fetch';
 
-const {
-    SlashCommandBuilder,
-    SlashCommandSubcommandBuilder,
-    SlashCommandIntegerOption,
+import {
+    EmbedBuilder,
     SlashCommandBooleanOption,
-    SlashCommandUserOption,
-    SlashCommandStringOption, Embed
-} = require("@discordjs/builders")
+    SlashCommandBuilder,
+    SlashCommandIntegerOption,
+    SlashCommandStringOption,
+    SlashCommandSubcommandBuilder,
+    SlashCommandUserOption
+} from '@discordjs/builders'
 
-const {MessageActionRow, MessageButton} = require("discord.js")
+import {ActionRowBuilder, ButtonBuilder, ButtonStyle} from 'discord.js'
 
-const {guildId, suggestionsChannel, host} = require("./config.json")
+import {guildId, host, suggestionsChannel} from './config.json'
 
-module.exports = (client, lock, states) => {
+export default (client, lock, states) => {
     const activeUserInteractions = {}
 
     const suggestionsViewCommand = new SlashCommandBuilder().setName('getsuggestions').setDescription('Get suggestion details.')
 
     const add = (builder) => {
         suggestionsViewCommand.addSubcommand(builder.addBooleanOption(new SlashCommandBooleanOption()
-            .setName("hidden")
-            .setDescription("If the result of this command should be hidden. Default is true.")
+            .setName('hidden')
+            .setDescription('If the result of this command should be hidden. Default is true.')
         ))
     }
 
@@ -58,11 +59,16 @@ module.exports = (client, lock, states) => {
         )
     )
 
-    async function fetchSuggestions(path, interaction, reply, {
-        failMessage = 'Failed to fetch suggestion.',
-        notFoundMessage = failMessage
-    }) {
-        let hidden = interaction.options.getBoolean("hidden", false) ?? true
+    async function fetchSuggestions(
+        path,
+        interaction,
+        reply,
+        {
+            failMessage = 'Failed to fetch suggestion.',
+            notFoundMessage = failMessage
+        }
+    ) {
+        let hidden = interaction.options.getBoolean('hidden', false) ?? true
         await interaction.deferReply({ephemeral: hidden})
         const result = await fetch(`${host}/suggestions/${path}`, {
             headers: {
@@ -71,15 +77,19 @@ module.exports = (client, lock, states) => {
         })
         if (result.status !== 200) {
             if (result.status === 404) {
-                await interaction.editReply({content: notFoundMessage, ephemeral: true})
+                const options = {content: notFoundMessage, ephemeral: true}
+                await interaction.editReply(options)
             } else {
-                await interaction.editReply({content: failMessage, ephemeral: true})
+                const options = {content: failMessage, ephemeral: true}
+                await interaction.editReply(options)
             }
         } else {
-            await interaction.editReply({
+            const options = {
                 ...(await reply(result)),
                 ephemeral: hidden
-            })
+            }
+
+            await interaction.editReply(options)
         }
     }
 
@@ -88,15 +98,17 @@ module.exports = (client, lock, states) => {
         const channel = guild.channels.cache.get(suggestionsChannel)
         const toEmbed = async suggestion => {
             const message = channel ? await channel.messages.fetch(suggestion.messageId) : null
-            const embed = new Embed()
+            const embed = new EmbedBuilder()
                 .setTitle(`Suggestion #${suggestion.id}`)
-                .addField({name: 'Author:', value: `<@${suggestion.authorId}>`})
-                .addField({name: 'Approval State:', value: states[suggestion.state]})
+                .addFields(
+                    {name: 'Author:', value: `<@${suggestion.authorId}>`},
+                    {name: 'Approval State:', value: states[suggestion.state]}
+                )
 
             if (message) {
-                embed.setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substr(0, 29)}...](${message.url})`)
+                embed.setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substring(0, 29)}...](${message.url})`)
             } else {
-                embed.setDescription("Origin of suggestion is unknown.")
+                embed.setDescription('Origin of suggestion is unknown.')
             }
 
             if (suggestion.state > 4) {
@@ -107,7 +119,8 @@ module.exports = (client, lock, states) => {
             return embed
         }
         if (interaction.isButton()) {
-            await interaction.deferUpdate({ephemeral: true})
+            const deferOptions = {ephemeral: true}
+            await interaction.deferUpdate(deferOptions)
             await lock.acquire('activeUserInteractions', done => {
                 const [type, interactionId] = interaction.customId.split('-')
                 const data = activeUserInteractions[interactionId]
@@ -126,21 +139,27 @@ module.exports = (client, lock, states) => {
                 }
 
                 const callback = embed => {
-                    const row = new MessageActionRow()
+                    const row = new ActionRowBuilder()
                         .addComponents(
-                            new MessageButton()
+                            new ButtonBuilder()
                                 .setCustomId(`left-${interactionId}`)
-                                .setStyle('SECONDARY')
-                                .setEmoji("⬅️")
+                                .setStyle(ButtonStyle.Secondary)
+                                .setEmoji('⬅️')
                                 .setDisabled(data.index === 0),
-                            new MessageButton()
+                            new ButtonBuilder()
                                 .setCustomId(`right-${interactionId}`)
-                                .setStyle('SECONDARY')
-                                .setEmoji("➡️")
+                                .setStyle(ButtonStyle.Secondary)
+                                .setEmoji('➡️')
                                 .setDisabled(data.index === data.suggestions.length - 1)
                         )
 
-                    interaction.editReply({embeds: [embed], ephemeral: true, components: [row]}).then(() => done()).catch(done)
+                    const reply = {
+                        embeds: [embed],
+                        ephemeral: true,
+                        components: [row]
+                    }
+
+                    interaction.editReply(reply).then(() => done()).catch(done)
                 }
 
                 data.index += sign
@@ -176,17 +195,17 @@ module.exports = (client, lock, states) => {
 
                         const embed = await toEmbed(suggestions[0])
 
-                        const row = new MessageActionRow()
+                        const row = new ActionRowBuilder()
                             .addComponents(
-                                new MessageButton()
+                                new ButtonBuilder()
                                     .setCustomId(`left-${interaction.id}`)
-                                    .setStyle('SECONDARY')
-                                    .setEmoji("⬅️")
+                                    .setStyle(ButtonStyle.Secondary)
+                                    .setEmoji('⬅️')
                                     .setDisabled(true),
-                                new MessageButton()
+                                new ButtonBuilder()
                                     .setCustomId(`right-${interaction.id}`)
-                                    .setStyle('SECONDARY')
-                                    .setEmoji("➡️")
+                                    .setStyle(ButtonStyle.Secondary)
+                                    .setEmoji('➡️')
                                     .setDisabled(suggestions.length === 1)
                             )
 

@@ -1,6 +1,6 @@
-const {reactionRoles} = require('./config.json')
+import {reactionRoles} from './config.json'
 
-module.exports = client => {
+export default client => {
     function createReactionEvent(callback) {
         return async (reaction, user) => {
             if (reactionRoles.message === reaction.message.id) {
@@ -10,6 +10,11 @@ module.exports = client => {
         }
     }
 
-    client.on('messageReactionAdd', createReactionEvent((member, role) => member.roles.add(role)))
-    client.on('messageReactionRemove', createReactionEvent((member, role) => member.roles.remove(role)))
+    client.on('messageReactionAdd', createReactionEvent(async (member, role) => {
+        await member.roles.add(role)
+    }))
+
+    client.on('messageReactionRemove', createReactionEvent(async (member, role) => {
+        await member.roles.remove(role)
+    }))
 }

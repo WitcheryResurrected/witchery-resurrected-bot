@@ -1,25 +1,35 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
+import fetch from 'node-fetch';
 
-const {
+import {
     SlashCommandBuilder,
     SlashCommandSubcommandBuilder,
     SlashCommandIntegerOption,
     SlashCommandStringOption,
-    Embed
-} = require("@discordjs/builders")
+    EmbedBuilder
+} from '@discordjs/builders'
 
-const {guildId, suggestionsChannel, logChannel, host, authorization} = require("./config.json")
+import {guildId, suggestionsChannel, logChannel, host, authorization} from './config.json'
 
-module.exports = (client, states) => {
+export default (client, states) => {
     const approvalStates = ['Pending', 'Approved', 'Implemented', 'Partially Approved', 'Partially Implemented', 'Denied', 'Duplicate']
-    const suggestionsCommand = new SlashCommandBuilder().setName('editsuggestions').setDescription('Suggestion commands').setDefaultPermission(false)
+    const suggestionsCommand = new SlashCommandBuilder().setName('editsuggestions').setDescription('Suggestion commands').setDefaultMemberPermissions(0).setDMPermission(false)
 
     suggestionsCommand.addSubcommand(new SlashCommandSubcommandBuilder()
         .setName('state')
         .setDescription('Set suggestion approval state.')
         .addIntegerOption(new SlashCommandIntegerOption().setName('id').setDescription('Suggestion ID').setRequired(true))
-        .addStringOption(new SlashCommandStringOption().setName('state').setDescription('Approval State').setRequired(true)
-            .addChoices(approvalStates.map(state => [state, state.toLowerCase().replace(' ', '_')])))
+        .addStringOption(
+            new SlashCommandStringOption()
+                .setName('state')
+                .setDescription('Approval State')
+                .setRequired(true)
+                .addChoices(
+                    ...approvalStates.map(state => ({
+                        name: state,
+                        value: state.toLowerCase().replace(' ', '_')
+                    }))
+                )
+        )
     )
 
     suggestionsCommand.addSubcommand(new SlashCommandSubcommandBuilder()
@@ -34,11 +44,21 @@ module.exports = (client, states) => {
         .addStringOption(new SlashCommandStringOption().setName('id').setDescription('Message ID').setRequired(true))
     )
 
-    async function modifySuggestions(path, interaction, method, reply, {
-        body,
-        failMessage,
-        notFoundMessage = failMessage
-    }) {
+    async function modifySuggestions(
+        path,
+        interaction,
+        method,
+        reply,
+        {
+            body,
+            failMessage,
+            notFoundMessage = failMessage
+        }: {
+            body?: any,
+            failMessage: string,
+            notFoundMessage: string
+        }
+    ) {
         const result = await fetch(`${host}/suggestions/${path}`, {
             method,
             headers: {
@@ -69,7 +89,8 @@ module.exports = (client, states) => {
             })
             if (addResult.status !== 200) {
                 await message.reply('Failed to request suggestion.')
-                await client.channels.cache.get(logChannel).send(`<@${message.guild.ownerId}> Request to suggestion path add/${message.id} failed\nStatus Code: ${addResult.status}\nStatus Text: ${addResult.statusText}`)
+                await client.channels.cache.get(logChannel)
+                    .send(`<@${message.guild.ownerId}> Request to suggestion path add/${message.id} failed\nStatus Code: ${addResult.status}\nStatus Text: ${addResult.statusText}`)
             } else {
                 const thread = await message.startThread({
                     name: `Suggestion #${parseInt(await addResult.text())} by ${message.member.displayName}, discussion thread`
@@ -102,11 +123,13 @@ module.exports = (client, states) => {
                         const guild = client.guilds.cache.get(guildId)
                         const channel = guild.channels.cache.get(suggestionsChannel)
                         const message = await channel.messages.fetch(suggestion.messageId)
-                        const embed = new Embed()
+                        const embed = new EmbedBuilder()
                             .setTitle(`Suggestion #${suggestion.id} has been updated`)
-                            .addField({name: 'Author:', value: `<@${suggestion.authorId}>`})
-                            .addField({name: 'Approval State:', value: states[suggestion.state]})
-                            .setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substr(0, 29)}...](${message.url})`)
+                            .addFields(
+                                {name: 'Author:', value: `<@${suggestion.authorId}>`},
+                                {name: 'Approval State:', value: states[suggestion.state]}
+                            )
+                            .setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substring(0, 29)}...](${message.url})`)
 
                         if (suggestion.state > 4) {
                             embed.setColor(0xFF0000)
@@ -139,7 +162,7 @@ module.exports = (client, states) => {
                         const message = await channel.messages.fetch(messageId)
                         return {
                             embeds: [
-                                new Embed().setDescription(`Marked [message](${message.url}) by ${message.author} as suggestion with ID ${await result.text()}.`)
+                                new EmbedBuilder().setDescription(`Marked [message](${message.url}) by ${message.author} as suggestion with ID ${await result.text()}.`)
                             ]
                         }
                     }, {
