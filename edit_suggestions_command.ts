@@ -1,4 +1,4 @@
-import axios, {Method} from 'axios';
+import axios, {AxiosError, AxiosResponse, Method} from 'axios';
 
 import {
     SlashCommandBuilder,
@@ -66,40 +66,53 @@ export default (client: Client, states: string[]) => {
             notFoundMessage: string
         }
     ) {
-        const result = await axios(`${host}/suggestions/${path}`, {
-            method,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            data: body ? {pass: authorization, ...body} : authorization
-        })
-        if (result.status !== 200) {
-            if (result.status === 404) {
+        let result: AxiosResponse
+
+        try {
+            result = await axios(`${host}/suggestions/${path}`, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                data: body ? {pass: authorization, ...body} : authorization
+            })
+        } catch (error) {
+            if (error.response.status === 404) {
                 await interaction.reply({content: notFoundMessage, ephemeral: true})
             } else {
                 await interaction.reply({content: failMessage, ephemeral: true})
                 await (client.channels.cache.get(logChannel) as TextChannel)
-                    .send(`<@${interaction.guild.ownerId}> Request to suggestion path ${path} failed\nStatus Code: ${result.status}\nStatus Text: ${result.statusText}`)
+                    .send(`<@${interaction.guild.ownerId}> Request to suggestion path ${path} failed\nStatus Code: ${error.response.status}\nStatus Text: ${error.response?.statusText}`)
             }
-        } else {
-            await interaction.reply(await reply(result.data))
+
+            return
         }
+
+        await interaction.reply(await reply(result.data))
     }
 
-    client.on('messageCreate', async message => {
-        if (message.channelId === suggestionsChannel && !message.author.bot && !message.system) {
-            const addResult = await axios.post(`${host}/suggestions/add/${message.id}`, authorization, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            if (addResult.status !== 200) {
-                message.thread.send('Failed to request suggestion.');
+    client.on('threadCreate', async thread => {
+        if (thread.parent.id === suggestionsChannel) {
+            const message = await thread.fetchStarterMessage();
+
+            let addResult: AxiosResponse
+
+            try {
+                addResult = await axios.post(`${host}/suggestions/add/${thread.id}/${message.id}`, authorization, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+            } catch (error) {
+                await thread.send('Failed to request suggestion.');
+
                 await (client.channels.cache.get(logChannel) as TextChannel)
-                    .send(`<@${message.guild.ownerId}> Request to suggestion path add/${message.id} failed\nStatus Code: ${addResult.status}\nStatus Text: ${addResult.statusText}`)
-            } else {
-                message.thread.send(`Suggestion #${addResult.data} created by ${message.member.displayName}. <@${message.guild.ownerId}>\``);
+                    .send(`<@${thread.guild.ownerId}> Request to suggestion path add/${thread.id}/${message.id} failed\nStatus Code: ${error.response.status}\nStatus Text: ${error.response?.statusText}`)
+
+                return
             }
+
+            await thread.send(`Suggestion #${addResult.data} created by <@${thread.ownerId}>.\n(Adding <@${thread.guild.ownerId}>.)`);
         }
     })
 

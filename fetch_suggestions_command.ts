@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, {AxiosResponse} from 'axios';
 
 import {
     EmbedBuilder,
@@ -81,12 +81,15 @@ export default (client: Client, lock, states: string[]) => {
     ) {
         let hidden = interaction.options.getBoolean('hidden') ?? true
         await interaction.deferReply({ephemeral: hidden})
-        const result = await axios.get(`${host}/suggestions/${path}`, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        if (result.status !== 200) {
+        let result: AxiosResponse
+
+        try {
+            result = await axios.get(`${host}/suggestions/${path}`, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+        } catch (error) {
             if (result.status === 404) {
                 const options = {content: notFoundMessage, ephemeral: true}
                 await interaction.editReply(options)
@@ -94,9 +97,11 @@ export default (client: Client, lock, states: string[]) => {
                 const options = {content: failMessage, ephemeral: true}
                 await interaction.editReply(options)
             }
-        } else {
-            await interaction.editReply(await reply(result))
+
+            return
         }
+
+        await interaction.editReply(await reply(result))
     }
 
     client.on('interactionCreate', async interaction => {
@@ -197,9 +202,7 @@ export default (client: Client, lock, states: string[]) => {
                     break
                 }
                 case 'user': {
-                    await fetchSuggestions(`by_author/${options.getUser('user', true).id}`, interaction as ChatInputCommandInteraction, async result => {
-                        const suggestions = await result.json()
-
+                    await fetchSuggestions(`by_author/${options.getUser('user', true).id}`, interaction as ChatInputCommandInteraction, async suggestions => {
                         const embed = await toEmbed(suggestions[0])
 
                         const row = new ActionRowBuilder<ButtonBuilder>()
@@ -237,7 +240,7 @@ export default (client: Client, lock, states: string[]) => {
                     await fetchSuggestions(
                         `by_message/${options.getString('id')}`,
                         interaction as ChatInputCommandInteraction,
-                        async result => ({embeds: [await toEmbed(await result.json())]}),
+                        result => toEmbed(result).then(embed => ({embeds: [embed]})),
                         {
                             notFoundMessage: 'Invalid message ID.'
                         }

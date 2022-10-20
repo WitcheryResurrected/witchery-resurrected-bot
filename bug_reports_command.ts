@@ -24,14 +24,13 @@ export default (client: Client, lock) => {
         fs.writeFile('bug-reports.json', JSON.stringify(Array.from(bugReports)), 'utf8', done)
     }
 
-    client.on('messageCreate', async message => {
-        if (message.channelId === bugReportsChannel && !message.author.bot && !message.system) {
-            const thread = message.thread
-            await thread.send(`Bug report created. <@${message.guild.ownerId}>`)
+    client.on('threadCreate', async thread => {
+        if (thread.parent.id === bugReportsChannel) {
+            await thread.send(`Bug report created by <@${thread.ownerId}>.\n(Adding <@${thread.guild.ownerId}>.)`)
 
             await lock.acquire('bugReports', done => {
-                if (!bugReports.has(message.id)) {
-                    bugReports.add(message.id)
+                if (!bugReports.has(thread.id)) {
+                    bugReports.add(thread.id)
                     writeBugs(done)
                 } else {
                     done()
