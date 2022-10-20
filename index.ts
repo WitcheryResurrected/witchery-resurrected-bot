@@ -1,10 +1,10 @@
 import AsyncLock from 'async-lock'
 
 import {REST} from '@discordjs/rest'
-import {Routes, Snowflake} from 'discord-api-types/v10'
+import {Routes} from 'discord-api-types/v10'
 import {Client, IntentsBitField, Partials} from 'discord.js'
 
-import {guildId, suggestionPermissions, token} from './config.json'
+import {token} from './config.json'
 
 import setupSuggestionEdits from './edit_suggestions_command'
 import setupSuggestionFetches from './fetch_suggestions_command'
@@ -41,14 +41,10 @@ async function main() {
 
     client.on('ready', async () => {
         const rest = new REST({version: '10'}).setToken(token)
-        let applicationCommandResults = await rest.put(Routes.applicationCommands(client.application.id), {
+
+        await rest.put(Routes.applicationCommands(client.application.id), {
             body: [editBugs, editSuggestions, fetchSuggestions]
         })
-
-        for (const command of [applicationCommandResults[0], applicationCommandResults[1]]) {
-            const appCommand = await client.application.commands.fetch(command.id as Snowflake)
-            await appCommand.permissions.add({guild: guildId, permissions: suggestionPermissions, token})
-        }
 
         console.log(`Ready, logged in as ${client.user.tag}`)
     })
