@@ -40,7 +40,7 @@ async function main() {
     const fetchSuggestions = setupSuggestionFetches(client, lock, states)
 
     client.on('ready', async () => {
-        const rest = new REST({version: '9'}).setToken(token)
+        const rest = new REST({version: '10'}).setToken(token)
         let applicationCommandResults = await rest.put(Routes.applicationCommands(client.application.id), {
             body: [editBugs, editSuggestions, fetchSuggestions]
         })

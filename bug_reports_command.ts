@@ -1,9 +1,10 @@
-import {SlashCommandBuilder, SlashCommandSubcommandBuilder, SlashCommandStringOption} from '@discordjs/builders'
+import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from '@discordjs/builders'
 
 import {bugReportsChannel} from './config.json'
 import fs from 'fs'
+import {ChatInputCommandInteraction, Client, TextChannel} from "discord.js";
 
-export default (client, lock) => {
+export default (client: Client, lock) => {
     const bugsCommand = new SlashCommandBuilder().setName('editbugs').setDescription('Bug report commands').setDefaultMemberPermissions(0).setDMPermission(false)
     const bugReports = new Set(fs.existsSync('bug-reports.json') ? JSON.parse(fs.readFileSync('bug-reports.json', 'utf8')) : null)
 
@@ -45,9 +46,9 @@ export default (client, lock) => {
         if (!interaction.isCommand()) {
             return
         }
-        const {commandName, options} = interaction
+        const {commandName, options} = interaction as ChatInputCommandInteraction
         if (commandName === 'editbugs') {
-            const channel = interaction.guild.channels.cache.get(bugReportsChannel)
+            const channel = interaction.guild.channels.cache.get(bugReportsChannel) as TextChannel
             switch (options.getSubcommand()) {
                 case 'add': {
                     const id = options.getString('id')

@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import axios from 'axios';
 
 import {
     EmbedBuilder,
@@ -10,16 +10,24 @@ import {
     SlashCommandUserOption
 } from '@discordjs/builders'
 
-import {ActionRowBuilder, ButtonBuilder, ButtonStyle} from 'discord.js'
+import {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChatInputCommandInteraction,
+    Client,
+    MessagePayload,
+    TextChannel, WebhookEditMessageOptions
+} from 'discord.js'
 
 import {guildId, host, suggestionsChannel} from './config.json'
 
-export default (client, lock, states) => {
+export default (client: Client, lock, states: string[]) => {
     const activeUserInteractions = {}
 
     const suggestionsViewCommand = new SlashCommandBuilder().setName('getsuggestions').setDescription('Get suggestion details.')
 
-    const add = (builder) => {
+    const add = (builder: SlashCommandSubcommandBuilder) => {
         suggestionsViewCommand.addSubcommand(builder.addBooleanOption(new SlashCommandBooleanOption()
             .setName('hidden')
             .setDescription('If the result of this command should be hidden. Default is true.')
@@ -60,17 +68,20 @@ export default (client, lock, states) => {
     )
 
     async function fetchSuggestions(
-        path,
-        interaction,
-        reply,
+        path: string,
+        interaction: ChatInputCommandInteraction,
+        reply: (result) => Promise<string | MessagePayload | WebhookEditMessageOptions>,
         {
             failMessage = 'Failed to fetch suggestion.',
             notFoundMessage = failMessage
+        }: {
+            failMessage?: string
+            notFoundMessage?: string
         }
     ) {
-        let hidden = interaction.options.getBoolean('hidden', false) ?? true
+        let hidden = interaction.options.getBoolean('hidden') ?? true
         await interaction.deferReply({ephemeral: hidden})
-        const result = await fetch(`${host}/suggestions/${path}`, {
+        const result = await axios.get(`${host}/suggestions/${path}`, {
             headers: {
                 'Content-Type': 'application/json'
             }
@@ -84,18 +95,13 @@ export default (client, lock, states) => {
                 await interaction.editReply(options)
             }
         } else {
-            const options = {
-                ...(await reply(result)),
-                ephemeral: hidden
-            }
-
-            await interaction.editReply(options)
+            await interaction.editReply(await reply(result))
         }
     }
 
     client.on('interactionCreate', async interaction => {
         const guild = client.guilds.cache.get(guildId)
-        const channel = guild.channels.cache.get(suggestionsChannel)
+        const channel = guild.channels.cache.get(suggestionsChannel) as TextChannel
         const toEmbed = async suggestion => {
             const message = channel ? await channel.messages.fetch(suggestion.messageId) : null
             const embed = new EmbedBuilder()
@@ -119,8 +125,7 @@ export default (client, lock, states) => {
             return embed
         }
         if (interaction.isButton()) {
-            const deferOptions = {ephemeral: true}
-            await interaction.deferUpdate(deferOptions)
+            await interaction.deferUpdate()
             await lock.acquire('activeUserInteractions', done => {
                 const [type, interactionId] = interaction.customId.split('-')
                 const data = activeUserInteractions[interactionId]
@@ -139,7 +144,7 @@ export default (client, lock, states) => {
                 }
 
                 const callback = embed => {
-                    const row = new ActionRowBuilder()
+                    const row = new ActionRowBuilder<ButtonBuilder>()
                         .addComponents(
                             new ButtonBuilder()
                                 .setCustomId(`left-${interactionId}`)
@@ -173,29 +178,31 @@ export default (client, lock, states) => {
                     }).catch(done)
                 }
             })
-
         } else if (!interaction.isCommand()) {
             return
         }
 
-        const {commandName, options} = interaction
+        const {commandName, options} = interaction as ChatInputCommandInteraction
         if (commandName === 'getsuggestions') {
             switch (options.getSubcommand()) {
                 case 'view': {
-                    await fetchSuggestions(options.getInteger('id'), interaction, async result => {
-                        return {embeds: [await toEmbed(await result.json())]}
-                    }, {
-                        notFoundMessage: 'Invalid suggestion ID.'
-                    })
+                    await fetchSuggestions(
+                        options.getInteger('id', true).toString(),
+                        interaction as ChatInputCommandInteraction,
+                        result => toEmbed(result).then(embed => ({embeds: [embed]})),
+                        {
+                            notFoundMessage: 'Invalid suggestion ID.'
+                        }
+                    )
                     break
                 }
                 case 'user': {
-                    await fetchSuggestions(`by_author/${options.getUser('user').id}`, interaction, async result => {
+                    await fetchSuggestions(`by_author/${options.getUser('user', true).id}`, interaction as ChatInputCommandInteraction, async result => {
                         const suggestions = await result.json()
 
                         const embed = await toEmbed(suggestions[0])
 
-                        const row = new ActionRowBuilder()
+                        const row = new ActionRowBuilder<ButtonBuilder>()
                             .addComponents(
                                 new ButtonBuilder()
                                     .setCustomId(`left-${interaction.id}`)
@@ -227,11 +234,14 @@ export default (client, lock, states) => {
                     break
                 }
                 case 'message': {
-                    await fetchSuggestions(`by_message/${options.getString('id')}`, interaction, async result => {
-                        return {embeds: [await toEmbed(await result.json())]}
-                    }, {
-                        notFoundMessage: 'Invalid message ID.'
-                    })
+                    await fetchSuggestions(
+                        `by_message/${options.getString('id')}`,
+                        interaction as ChatInputCommandInteraction,
+                        async result => ({embeds: [await toEmbed(await result.json())]}),
+                        {
+                            notFoundMessage: 'Invalid message ID.'
+                        }
+                    )
                     break
                 }
             }
