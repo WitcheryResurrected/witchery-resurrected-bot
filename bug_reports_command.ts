@@ -26,10 +26,8 @@ export default (client: Client, lock) => {
 
     client.on('messageCreate', async message => {
         if (message.channelId === bugReportsChannel && !message.author.bot && !message.system) {
-            const thread = await message.startThread({
-                name: `Bug reported by ${message.member.displayName}, discussion thread`
-            })
-            await thread.send(`<@${message.guild.ownerId}>`)
+            const thread = message.thread
+            await thread.send(`Bug report created. <@${message.guild.ownerId}>`)
 
             await lock.acquire('bugReports', done => {
                 if (!bugReports.has(message.id)) {
