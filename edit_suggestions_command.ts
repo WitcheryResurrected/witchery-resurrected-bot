@@ -94,14 +94,11 @@ export default (client: Client, states: string[]) => {
                 }
             })
             if (addResult.status !== 200) {
-                await message.reply('Failed to request suggestion.')
+                message.thread.send('Failed to request suggestion.');
                 await (client.channels.cache.get(logChannel) as TextChannel)
                     .send(`<@${message.guild.ownerId}> Request to suggestion path add/${message.id} failed\nStatus Code: ${addResult.status}\nStatus Text: ${addResult.statusText}`)
             } else {
-                const thread = await message.startThread({
-                    name: `Suggestion #${parseInt(addResult.data)} by ${message.member.displayName}, discussion thread`
-                })
-                await thread.send(`<@${message.guild.ownerId}>`)
+                message.thread.send(`Suggestion #${addResult.data} created by ${message.member.displayName}. <@${message.guild.ownerId}>\``);
             }
         }
     })
