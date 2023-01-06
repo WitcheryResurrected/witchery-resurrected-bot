@@ -1,10 +1,11 @@
 import {SlashCommandBuilder, SlashCommandStringOption, SlashCommandSubcommandBuilder} from '@discordjs/builders'
 
-import {bugReportsChannel} from './config.json'
 import fs from 'fs'
 import {ChatInputCommandInteraction, Client, TextChannel} from "discord.js";
+import {getConfig} from "./config";
 
-export default (client: Client, lock) => {
+export default async (client: Client, lock) => {
+    const {bugReportsChannel} = await getConfig();
     const bugsCommand = new SlashCommandBuilder().setName('editbugs').setDescription('Bug report commands').setDefaultMemberPermissions(0).setDMPermission(false)
     const bugReports = new Set(fs.existsSync('bug-reports.json') ? JSON.parse(fs.readFileSync('bug-reports.json', 'utf8')) : null)
 

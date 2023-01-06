@@ -8,7 +8,6 @@ import {
     EmbedBuilder
 } from '@discordjs/builders'
 
-import {guildId, suggestionsChannel, logChannel, host, authorization} from './config.json'
 import {
     ChatInputCommandInteraction,
     Client,
@@ -16,8 +15,10 @@ import {
     InteractionReplyOptions,
     TextChannel
 } from "discord.js";
+import {getConfig} from "./config";
 
-export default (client: Client, states: string[]) => {
+export default async (client: Client, states: string[]) => {
+    const {guildId, suggestionsChannel, logChannel, host, authorization} = await getConfig();
     const approvalStates = ['Pending', 'Approved', 'Implemented', 'Partially Approved', 'Partially Implemented', 'Denied', 'Duplicate']
     const suggestionsCommand = new SlashCommandBuilder().setName('editsuggestions').setDescription('Suggestion commands').setDefaultMemberPermissions(0).setDMPermission(false)
 
@@ -91,7 +92,7 @@ export default (client: Client, states: string[]) => {
         await interaction.reply(await reply(result.data))
     }
 
-    client.on('threadCreate', async thread => {
+/*    client.on('threadCreate', async thread => {
         if (thread.parent.id === suggestionsChannel) {
             const message = await thread.fetchStarterMessage();
 
@@ -114,7 +115,7 @@ export default (client: Client, states: string[]) => {
 
             await thread.send(`Suggestion #${addResult.data} created by <@${thread.ownerId}>.\n(Adding <@${thread.guild.ownerId}>.)`);
         }
-    })
+    })*/
 
     client.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) {

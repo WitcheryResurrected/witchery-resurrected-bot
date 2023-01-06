@@ -3,10 +3,12 @@ import {
     User
 } from 'discord.js';
 
-import {guildId, welcomesChannel, discordWelcomesChannel, logChannel, nitroChannel, nitroBoostRole} from './config.json'
 import {Snowflake} from "discord-api-types/v10";
+import {getConfig} from "./config";
 
-export default (client: Client, lock) => {
+export default async (client: Client, lock) => {
+    const {guildId, welcomesChannel, discordWelcomesChannel, logChannel, nitroChannel, nitroBoostRole} = await getConfig();
+
     const pendingMembers = new Set()
     const leaveStates: Record<Snowflake,
         {
@@ -23,7 +25,7 @@ export default (client: Client, lock) => {
         return member.id === kick.target.id ? kick : null
     }
 
-    function memberLeft(member: GuildMember | PartialGuildMember | User, guild: Guild, done) {
+    async function memberLeft(member: GuildMember | PartialGuildMember | User, guild: Guild, done) {
         const leaveState = leaveStates[member.id]
         const tag = member instanceof User ? member.tag : member.user.tag
         const channel = guild.channels.cache.get(welcomesChannel) as TextChannel

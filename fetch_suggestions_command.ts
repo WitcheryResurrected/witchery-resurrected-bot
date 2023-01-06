@@ -19,10 +19,10 @@ import {
     MessagePayload,
     TextChannel, WebhookEditMessageOptions
 } from 'discord.js'
+import {getConfig} from "./config";
 
-import {guildId, host, suggestionsChannel} from './config.json'
-
-export default (client: Client, lock, states: string[]) => {
+export default async (client: Client, lock, states: string[]) => {
+    const {guildId, host, suggestionsChannel} = await getConfig();
     const activeUserInteractions = {}
 
     const suggestionsViewCommand = new SlashCommandBuilder().setName('getsuggestions').setDescription('Get suggestion details.')
