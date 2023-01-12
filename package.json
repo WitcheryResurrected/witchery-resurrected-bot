@@ -19,5 +19,6 @@
   "devDependencies": {
     "discord-api-types": "^0.37.14",
     "typescript": "^4.8.4"
-  }
+  },
+  "types": "async-lock.d.ts"
 }

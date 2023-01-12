@@ -12,6 +12,7 @@ import {
     ChatInputCommandInteraction,
     Client,
     CommandInteraction,
+    ForumChannel,
     InteractionReplyOptions,
     TextChannel
 } from "discord.js";
@@ -48,8 +49,8 @@ export default async (client: Client, states: string[]) => {
 
     suggestionsCommand.addSubcommand(new SlashCommandSubcommandBuilder()
         .setName('add')
-        .setDescription('Mark a message as a suggestion.')
-        .addStringOption(new SlashCommandStringOption().setName('id').setDescription('Message ID').setRequired(true))
+        .setDescription('Mark a post as a suggestion.')
+        .addStringOption(new SlashCommandStringOption().setName('id').setDescription('Thread ID').setRequired(true))
     )
 
     async function modifySuggestions(
@@ -92,14 +93,21 @@ export default async (client: Client, states: string[]) => {
         await interaction.reply(await reply(result.data))
     }
 
-/*    client.on('threadCreate', async thread => {
+    client.on('threadCreate', async thread => {
         if (thread.parent.id === suggestionsChannel) {
             const message = await thread.fetchStarterMessage();
 
             let addResult: AxiosResponse
 
             try {
-                addResult = await axios.post(`${host}/suggestions/add/${thread.id}/${message.id}`, authorization, {
+                addResult = await axios.post(`${host}/suggestions/add`, {
+                    pass: authorization,
+                    creatorId: thread.ownerId,
+                    threadId: thread.id,
+                    title: thread.name,
+                    content: message.content,
+                    creatorName: message.author.username
+                }, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
@@ -115,7 +123,7 @@ export default async (client: Client, states: string[]) => {
 
             await thread.send(`Suggestion #${addResult.data} created by <@${thread.ownerId}>.\n(Adding <@${thread.guild.ownerId}>.)`);
         }
-    })*/
+    })
 
     client.on('interactionCreate', async interaction => {
         if (!interaction.isCommand()) {
@@ -137,7 +145,7 @@ export default async (client: Client, states: string[]) => {
 
                     await modifySuggestions(options.getInteger('id', true).toString(), interaction, 'PATCH', async suggestion => {
                         const guild = client.guilds.cache.get(guildId)
-                        const channel = guild.channels.cache.get(suggestionsChannel) as TextChannel
+                        const channel = guild.channels.cache.get(suggestionsChannel) as ForumChannel
                         const message = await channel.messages.fetch(suggestion.messageId)
                         const embed = new EmbedBuilder()
                             .setTitle(`Suggestion #${suggestion.id} has been updated`)
@@ -155,7 +163,7 @@ export default async (client: Client, states: string[]) => {
 
                         return {embeds: [embed]}
                     }, {
-                        body: {state},
+                        body: {stateId: state + 1},
                         failMessage: 'Failed to update suggestion.',
                         notFoundMessage: 'Invalid suggestion ID.'
                     })
@@ -175,20 +183,37 @@ export default async (client: Client, states: string[]) => {
                     break
                 }
                 case 'add': {
-                    const messageId = options.getString('id')
-                    await modifySuggestions(`add/${messageId}`, interaction, 'POST', async result => {
-                        const guild = client.guilds.cache.get(guildId)
-                        const channel = guild.channels.cache.get(suggestionsChannel) as TextChannel
-                        const message = await channel.messages.fetch(messageId)
-                        return {
-                            embeds: [
-                                new EmbedBuilder().setDescription(`Marked [message](${message.url}) by ${message.author} as suggestion with ID ${result}.`)
-                            ]
-                        }
-                    }, {
-                        failMessage: 'Failed to request suggestion.',
-                        notFoundMessage: 'Invalid message ID.'
-                    })
+                    const threadId = options.getString('id');
+                    const guild = client.guilds.cache.get(guildId)
+                    const channel = guild.channels.cache.get(suggestionsChannel) as ForumChannel;
+                    const thread = channel.threads.cache.get(threadId);
+                    if (thread) {
+                        const message = await thread.fetchStarterMessage();
+
+                        await modifySuggestions(`add`, interaction, 'POST', async result => {
+                            const message = await channel.messages.fetch(threadId)
+                            return {
+                                embeds: [
+                                    new EmbedBuilder().setDescription(`Marked [message](${message.url}) by ${message.author} as suggestion with ID ${result}.`)
+                                ]
+                            }
+                        }, {
+                            body: {
+                                creatorId: thread.ownerId,
+                                threadId: thread.id,
+                                title: thread.name,
+                                content: message.content,
+                                creatorName: message.author.username
+                            },
+                            failMessage: 'Failed to request suggestion.',
+                            notFoundMessage: 'Invalid message ID.'
+                        })
+                    } else {
+                        await interaction.followUp({
+                            ephemeral: true,
+                            content: 'Post not found'
+                        });
+                    }
                     break
                 }
             }

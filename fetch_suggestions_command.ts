@@ -16,6 +16,7 @@ import {
     ButtonStyle,
     ChatInputCommandInteraction,
     Client,
+    ForumChannel,
     MessagePayload,
     TextChannel, WebhookEditMessageOptions
 } from 'discord.js'
@@ -57,8 +58,8 @@ export default async (client: Client, lock, states: string[]) => {
     )
 
     add(new SlashCommandSubcommandBuilder()
-        .setName('message')
-        .setDescription('View a suggestion via its message ID.')
+        .setName('thread')
+        .setDescription('View a suggestion via its thread ID.')
         .addStringOption(
             new SlashCommandStringOption()
                 .setName('id')
@@ -70,7 +71,7 @@ export default async (client: Client, lock, states: string[]) => {
     async function fetchSuggestions(
         path: string,
         interaction: ChatInputCommandInteraction,
-        reply: (result) => Promise<string | MessagePayload | WebhookEditMessageOptions>,
+        reply: (result: AxiosResponse) => Promise<string | MessagePayload | WebhookEditMessageOptions>,
         {
             failMessage = 'Failed to fetch suggestion.',
             notFoundMessage = failMessage
@@ -106,9 +107,9 @@ export default async (client: Client, lock, states: string[]) => {
 
     client.on('interactionCreate', async interaction => {
         const guild = client.guilds.cache.get(guildId)
-        const channel = guild.channels.cache.get(suggestionsChannel) as TextChannel
+        const channel = guild.channels.cache.get(suggestionsChannel) as ForumChannel
         const toEmbed = async suggestion => {
-            const message = channel ? await channel.messages.fetch(suggestion.messageId) : null
+            const post = channel ? await channel.threads.fetch(suggestion.messageId) : null
             const embed = new EmbedBuilder()
                 .setTitle(`Suggestion #${suggestion.id}`)
                 .addFields(
@@ -116,8 +117,8 @@ export default async (client: Client, lock, states: string[]) => {
                     {name: 'Approval State:', value: states[suggestion.state]}
                 )
 
-            if (message) {
-                embed.setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substring(0, 29)}...](${message.url})`)
+            if (post) {
+                embed.setDescription(post.name.length < 29 ? `[${post.name}](${post.url})` : `[${post.name.substring(0, 29)}...](${post.url})`)
             } else {
                 embed.setDescription('Origin of suggestion is unknown.')
             }
@@ -129,6 +130,7 @@ export default async (client: Client, lock, states: string[]) => {
             }
             return embed
         }
+
         if (interaction.isButton()) {
             await interaction.deferUpdate()
             await lock.acquire('activeUserInteractions', done => {
@@ -183,17 +185,19 @@ export default async (client: Client, lock, states: string[]) => {
                     }).catch(done)
                 }
             })
-        } else if (!interaction.isCommand()) {
+        }
+
+        if (!interaction.isChatInputCommand()) {
             return
         }
 
-        const {commandName, options} = interaction as ChatInputCommandInteraction
+        const {commandName, options} = interaction
         if (commandName === 'getsuggestions') {
             switch (options.getSubcommand()) {
                 case 'view': {
                     await fetchSuggestions(
                         options.getInteger('id', true).toString(),
-                        interaction as ChatInputCommandInteraction,
+                        interaction,
                         result => toEmbed(result).then(embed => ({embeds: [embed]})),
                         {
                             notFoundMessage: 'Invalid suggestion ID.'
@@ -202,7 +206,7 @@ export default async (client: Client, lock, states: string[]) => {
                     break
                 }
                 case 'user': {
-                    await fetchSuggestions(`by_author/${options.getUser('user', true).id}`, interaction as ChatInputCommandInteraction, async suggestions => {
+                    await fetchSuggestions(`by_author/${options.getUser('user', true).id}`, interaction, async suggestions => {
                         const embed = await toEmbed(suggestions[0])
 
                         const row = new ActionRowBuilder<ButtonBuilder>()
@@ -216,7 +220,7 @@ export default async (client: Client, lock, states: string[]) => {
                                     .setCustomId(`right-${interaction.id}`)
                                     .setStyle(ButtonStyle.Secondary)
                                     .setEmoji('➡️')
-                                    .setDisabled(suggestions.length === 1)
+                                    .setDisabled(suggestions.data.length === 1)
                             )
 
                         await lock.acquire('activeUserInteractions', done => {
@@ -236,10 +240,10 @@ export default async (client: Client, lock, states: string[]) => {
                     })
                     break
                 }
-                case 'message': {
+                case 'thread': {
                     await fetchSuggestions(
-                        `by_message/${options.getString('id')}`,
-                        interaction as ChatInputCommandInteraction,
+                        `by_thread/${options.getString('id')}`,
+                        interaction,
                         result => toEmbed(result).then(embed => ({embeds: [embed]})),
                         {
                             notFoundMessage: 'Invalid message ID.'
