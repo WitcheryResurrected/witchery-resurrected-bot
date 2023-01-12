@@ -18,7 +18,7 @@ import {
     Client,
     ForumChannel,
     MessagePayload,
-    TextChannel, WebhookEditMessageOptions
+    WebhookEditMessageOptions
 } from 'discord.js'
 import {getConfig} from "./config";
 
@@ -71,7 +71,7 @@ export default async (client: Client, lock, states: string[]) => {
     async function fetchSuggestions(
         path: string,
         interaction: ChatInputCommandInteraction,
-        reply: (result: AxiosResponse) => Promise<string | MessagePayload | WebhookEditMessageOptions>,
+        reply: (result) => Promise<string | MessagePayload | WebhookEditMessageOptions>,
         {
             failMessage = 'Failed to fetch suggestion.',
             notFoundMessage = failMessage
@@ -91,7 +91,7 @@ export default async (client: Client, lock, states: string[]) => {
                 }
             })
         } catch (error) {
-            if (result.status === 404) {
+            if (error.response.status === 404) {
                 const options = {content: notFoundMessage, ephemeral: true}
                 await interaction.editReply(options)
             } else {
@@ -102,14 +102,14 @@ export default async (client: Client, lock, states: string[]) => {
             return
         }
 
-        await interaction.editReply(await reply(result))
+        await interaction.editReply(await reply(result.data))
     }
 
     client.on('interactionCreate', async interaction => {
         const guild = client.guilds.cache.get(guildId)
         const channel = guild.channels.cache.get(suggestionsChannel) as ForumChannel
         const toEmbed = async suggestion => {
-            const post = channel ? await channel.threads.fetch(suggestion.messageId) : null
+            const post = channel ? await channel.threads.fetch(suggestion.threadId) : null
             const embed = new EmbedBuilder()
                 .setTitle(`Suggestion #${suggestion.id}`)
                 .addFields(
@@ -123,9 +123,9 @@ export default async (client: Client, lock, states: string[]) => {
                 embed.setDescription('Origin of suggestion is unknown.')
             }
 
-            if (suggestion.state > 4) {
+            if (suggestion.state.id > 5) {
                 embed.setColor(0xFF0000)
-            } else if (suggestion.state > 0) {
+            } else if (suggestion.state > 1) {
                 embed.setColor(0xFF00)
             }
             return embed
@@ -207,33 +207,37 @@ export default async (client: Client, lock, states: string[]) => {
                 }
                 case 'user': {
                     await fetchSuggestions(`by_author/${options.getUser('user', true).id}`, interaction, async suggestions => {
-                        const embed = await toEmbed(suggestions[0])
+                        if (suggestions.length) {
+                            const embed = await toEmbed(suggestions[0])
 
-                        const row = new ActionRowBuilder<ButtonBuilder>()
-                            .addComponents(
-                                new ButtonBuilder()
-                                    .setCustomId(`left-${interaction.id}`)
-                                    .setStyle(ButtonStyle.Secondary)
-                                    .setEmoji('⬅️')
-                                    .setDisabled(true),
-                                new ButtonBuilder()
-                                    .setCustomId(`right-${interaction.id}`)
-                                    .setStyle(ButtonStyle.Secondary)
-                                    .setEmoji('➡️')
-                                    .setDisabled(suggestions.data.length === 1)
-                            )
+                            const row = new ActionRowBuilder<ButtonBuilder>()
+                                .addComponents(
+                                    new ButtonBuilder()
+                                        .setCustomId(`left-${interaction.id}`)
+                                        .setStyle(ButtonStyle.Secondary)
+                                        .setEmoji('⬅️')
+                                        .setDisabled(true),
+                                    new ButtonBuilder()
+                                        .setCustomId(`right-${interaction.id}`)
+                                        .setStyle(ButtonStyle.Secondary)
+                                        .setEmoji('➡️')
+                                        .setDisabled(suggestions.length === 1)
+                                )
 
-                        await lock.acquire('activeUserInteractions', done => {
-                            activeUserInteractions[interaction.id] = {
-                                suggestions,
-                                index: 0,
-                                embeds: [embed],
-                                parent: interaction
-                            }
-                            done()
-                        })
+                            await lock.acquire('activeUserInteractions', done => {
+                                activeUserInteractions[interaction.id] = {
+                                    suggestions,
+                                    index: 0,
+                                    embeds: [embed],
+                                    parent: interaction
+                                }
+                                done()
+                            })
 
-                        return {embeds: [embed], components: [row]}
+                            return {embeds: [embed], components: [row]}
+                        } else {
+                            return 'User has no suggestions';
+                        }
                     }, {
                         failMessage: 'Failed to fetch suggestions.',
                         notFoundMessage: 'User has no suggestions.'

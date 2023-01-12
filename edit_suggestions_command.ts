@@ -1,4 +1,4 @@
-import axios, {AxiosError, AxiosResponse, Method} from 'axios';
+import axios, {AxiosResponse, Method} from 'axios';
 
 import {
     SlashCommandBuilder,
@@ -151,13 +151,13 @@ export default async (client: Client, states: string[]) => {
                             .setTitle(`Suggestion #${suggestion.id} has been updated`)
                             .addFields(
                                 {name: 'Author:', value: `<@${suggestion.authorId}>`},
-                                {name: 'Approval State:', value: states[suggestion.state]}
+                                {name: 'Approval State:', value: states[suggestion.state.id - 1]}
                             )
                             .setDescription(message.content.length < 29 ? `[${message.content}](${message.url})` : `[${message.content.substring(0, 29)}...](${message.url})`)
 
-                        if (suggestion.state > 4) {
+                        if (suggestion.state.id > 5) {
                             embed.setColor(0xFF0000)
-                        } else if (suggestion.state > 0) {
+                        } else if (suggestion.state.id > 1) {
                             embed.setColor(0xFF00)
                         }
 
